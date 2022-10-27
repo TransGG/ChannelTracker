@@ -14,7 +14,7 @@ mongoURI = open("mongo.txt","r").read()
 cluster = MongoClient(mongoURI)
 TrackerDB = cluster["TrackerDB"]
 
-version = "0.1.0"
+version = "1.0.0"
 
 intents = discord.Intents.default()
 intents.message_content = False
@@ -26,9 +26,12 @@ class Bot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    copyGuild: discord.Guild
+    pasteGuild: discord.Guild
+
 client = Bot(
         intents = intents,
-        command_prefix = "/!\"@:\#", #unnecessary, but needs to be set so.. uh.. yeah. Unnecessary terminal warnings avoided.
+        command_prefix = "/!\"@:\\#", #unnecessary, but needs to be set so.. uh.. yeah. Unnecessary terminal warnings avoided.
         case_insensitive=True,
         # activity = discord.Game(name="with slash (/) commands!"),
         allowed_mentions = discord.AllowedMentions(everyone = False)
@@ -66,15 +69,16 @@ async def updateCmds(itx: discord.Interaction):
 
 
 def getMatch(snowflake: discord.abc.Snowflake, location):
-    try:
-        collection = TrackerDB["blacklist"]
-        query = {"id": snowflake.id}
-    except AttributeError:
+    # try:
+    #     collection = TrackerDB["blacklist"]
+    #     query = {"id": snowflake.id}
+    # except AttributeError:
+    #     return None
+    # item = collection.find_one(query)
+    # if item is not None:
+    #     return "Forbidden"
+    if snowflake is None:
         return None
-    item = collection.find_one(query)
-    if item is not None:
-        return "Forbidden"
-
     collection = TrackerDB["ids"]
     query = {"id": snowflake.id}
     item = collection.find_one(query)
@@ -87,7 +91,6 @@ def getMatch(snowflake: discord.abc.Snowflake, location):
     else:
         return result #redundant: # TODO:
 
-    old = {
     #
     # if type(snowflake) == discord.Guild:
     #     guild.id
@@ -100,22 +103,21 @@ def getMatch(snowflake: discord.abc.Snowflake, location):
     #     pass
     # if type(snowflake) == discord.GuildSticker:
     #     pass
-    }
 
 ### Update Events
-## on_guild_channel_create
-## on_guild_channel_delete
-## on_guild_channel_update
-# on_guild_update
-# on_guild_emojis_update
-# on_guild_stickers_update
+# on_guild_channel_create
+# on_guild_channel_delete
+# on_guild_channel_update
+## on_guild_update
+## on_guild_emojis_update
+## on_guild_stickers_update
 # on_guild_role_create
 # on_guild_role_delete
 # on_guild_role_update
-## on_thread_create
-## on_thread_update
-## on_thread_remove
-## on_thread_delete
+# on_thread_create
+# on_thread_update
+# on_thread_remove
+# on_thread_delete
 
 guildUpdates = []
 
@@ -128,21 +130,31 @@ async def refresh(itx: discord.Interaction):
         global guildUpdates
         await itx.response.defer(ephemeral=True)
 
-        blcollection = TrackerDB["ids"]
+        collection   = TrackerDB["ids"]
+        blcollection = TrackerDB["blacklist"]
         blquery   = {"name": "blacklist"}
         search = blcollection.find_one(blquery)
         if search is None:
             blacklist = []
         else:
-            blacklist = search
+            blacklist = search['list']
+        role: discord.Role
         for role in client.copyGuild.roles:
-            collection   = TrackerDB["ids"]
             query     = {"id": role.id}
-            print(repr(role))
+            print("role: ",role.name)
+            if role.is_default():
+                zrole = None
+                for zrole in client.pasteGuild.roles:
+                    if zrole.is_default():
+                        break
+                assert zrole is not None
+            else:
+                zrole = getMatch(role, client.pasteGuild.roles)
             if role.id in blacklist:
                 continue
-
-            zrole  = getMatch(role, client.pasteGuild.roles)
+            if zrole is not None:
+                if zrole.id in blacklist:
+                    continue
             if zrole is None:
                 zrole = await client.pasteGuild.create_role(
                         name         = role.name,
@@ -177,8 +189,8 @@ async def refresh(itx: discord.Interaction):
             #ignore but still continue the command
             pass
         elif guildUpdates[0]+600 > mktime(datetime.now().timetuple()):
-            await itx.response.send_message("You can't update the server more than twice in 10 minutes! (bcuz discord :P)\n"+
-            f"You can update it again <t:{guildUpdates[0]+600}:R> (<t:{guildUpdates[0]+600}:t>).", ephemeral = True)
+            await itx.response.send_message(f"You can't update the server more than twice in 10 minutes! (bcuz discord :P)\n" +
+                                            f"You can update it again <t:{guildUpdates[0]+600}:R> (<t:{guildUpdates[0]+600}:t>).", ephemeral = True)
             # ignore entirely, don't continue command
             return
         else:
@@ -188,15 +200,36 @@ async def refresh(itx: discord.Interaction):
 
 
         for channel in client.copyGuild.channels:
+            print("channel: ",channel)
             collection = TrackerDB["ids"]
             query = {"id": channel.id}
-            print(repr(channel))
-            zchannel  = getMatch(channel, client.pasteGuild.channels)
-            zcategory = getMatch(channel.category, client.pasteGuild.categories)
+            zchannel: [discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel]
+            zchannel                               = getMatch(channel, client.pasteGuild.channels)
+            zcategory: discord.CategoryChannel = getMatch(channel.category, client.pasteGuild.categories)
+            if channel.id in blacklist:
+                continue
+            if zchannel is not None:
+                if zchannel.id in blacklist:
+                    continue
+            zoverwrites = {}
+            for target in channel.overwrites:
+                ztarget = getMatch(target, client.pasteGuild.roles)
+                if ztarget is None:
+                    if target in client.pasteGuild.members:
+                        ztarget = target
+                    else:
+                        continue
+                    # ztarget = target#getMatch(target, client.pasteGuild.members)
+                zoverwrites[ztarget] = channel.overwrites[target]
+                # print(ztarget, channel.overwrites[target])
+            # print(channel.overwrites, zoverwrites)
+            # zoverwrites = {}
+
             if zchannel is None:
+                print(channel,channel.category)
                 if zcategory is None:
                     if type(channel) is not discord.CategoryChannel and channel.category is None:
-                        zcategory = client.pasteGuild
+                        zcategory: discord.Guild = client.pasteGuild
                     else:
                         if type(channel) is discord.CategoryChannel:
                             category = channel
@@ -204,10 +237,10 @@ async def refresh(itx: discord.Interaction):
                             category = channel.category
                         zcategory = await client.pasteGuild.create_category(
                                 category.name,
+                                overwrites  = zoverwrites,
                                 position    = category.position,
                                 reason      = "Match TransPlace",
                             )
-
                         if type(channel) is not discord.CategoryChannel:
                             collection.update_one(query, {"$set":{"id":category.id,"matchingid":zcategory.id}}, upsert=True)
                         else:
@@ -215,7 +248,7 @@ async def refresh(itx: discord.Interaction):
                 if type(channel) is discord.TextChannel:
                     nchannel = await zcategory.create_text_channel(
                             channel.name,
-                            # overwrites      = channel.overwrites,
+                            overwrites      = zoverwrites,
                             position        = channel.position,
                             topic           = channel.topic,
                             slowmode_delay  = channel.slowmode_delay,
@@ -227,7 +260,7 @@ async def refresh(itx: discord.Interaction):
                 elif type(channel) is discord.VoiceChannel:
                     nchannel = await zcategory.create_voice_channel(
                             channel.name,
-                            # overwrites      = channel.overwrites,
+                            overwrites      = zoverwrites,
                             position        = channel.position,
                             bitrate         = channel.bitrate,
                             user_limit      = channel.user_limit,
@@ -238,7 +271,7 @@ async def refresh(itx: discord.Interaction):
                 elif type(channel) is discord.StageChannel:
                     nchannel = await zcategory.create_stage_channel(
                             channel.name,
-                            # overwrites      = channel.overwrites,
+                            overwrites      = zoverwrites,
                             position        = channel.position,
                             topic           = channel.topic,
                             reason          = "Match TransPlace",
@@ -251,51 +284,65 @@ async def refresh(itx: discord.Interaction):
                             category        = channel.category,
                             position        = channel.position,
                             nsfw            = channel.nsfw,
+                            overwrites      = zoverwrites,
                             slowmode_delay  = channel.slowmode_delay,
                             reason          = "Match TransPlace",
                             default_auto_archive_duration = channel.default_auto_archive_duration,
                     )
                 elif type(channel) is discord.CategoryChannel:
-                    pass #already handled in zcategory is None, cause category.category is None.
+                    assert isinstance(nchannel, discord.CategoryChannel)
+                    #already handled in zcategory is None, cause category.category is None.
                 else:
                     raise Exception("Channel has type that was unaccounted for!")
 
                 collection.update_one(query, {"$set":{"id":channel.id,"matchingid":nchannel.id}}, upsert=True)
             else:
+                kwargs = []
                 if channel.category is not None:
-                    zcategory = getMatch(channel.category, client.pasteGuild.categories)
+                    zcategory: discord.CategoryChannel = getMatch(channel.category, client.pasteGuild.categories)
                     if zcategory is None:
                         zcategory = await client.pasteGuild.create_category(
                                 channel.category.name,
+                                overwrites  = zoverwrites,
                                 position    = channel.category.position,
                                 reason      = "Match TransPlace",
                             )
-                        collection.update_one(query, {"$set":{"id":channel.category.id,"matchingid":zcategory.id}}, upsert=True)
+                        query = {"id": channel.category.id}
+                        collection.update_one(query, {"$set":{"matchingid":zcategory.id}}, upsert=True)
                 else:
                     zcategory = None
                 if type(zchannel) is discord.TextChannel:
+                    zchannel: discord.TextChannel
                     kwargs = dict()
                     for attr in ("name", "topic", "position", "nsfw","permissions_synced","slowmode_delay","type","default_auto_archive_duration"):
                         if getattr(zchannel, attr) != getattr(channel, attr):
                             if attr == "permissions_synced":
                                 kwargs["sync_permissions"] = getattr(channel, attr)
-                            kwargs[attr] = getattr(channel,attr)
+                            else:
+                                kwargs[attr] = getattr(channel,attr)
                     if zchannel.category != zcategory:
                         kwargs['category'] = zcategory
+                    if zchannel.overwrites != zoverwrites:
+                        kwargs['overwrites'] = zoverwrites
                     if len(kwargs) == 0:
                         continue
                     await zchannel.edit(
                         **kwargs,
                         reason          = "Match TransPlace",
+                    )
                 elif type(zchannel) is discord.VoiceChannel:
+                    zchannel: discord.VoiceChannel
                     kwargs = dict()
                     for attr in ("name", "bitrate", "nsfw", "user_limit","position","rtc_region","permissions_synced","video_quality_mode"):
                         if getattr(zchannel, attr) != getattr(channel, attr):
                             if attr == "permissions_synced":
                                 kwargs["sync_permissions"] = getattr(channel, attr)
-                            kwargs[attr] = getattr(channel,attr)
+                            else:
+                                kwargs[attr] = getattr(channel,attr)
                     if zchannel.category != zcategory:
                         kwargs['category'] = zcategory
+                    if zchannel.overwrites != zoverwrites:
+                        kwargs['category'] = zoverwrites
                     if len(kwargs) == 0:
                         continue
                     await zchannel.edit(
@@ -303,39 +350,59 @@ async def refresh(itx: discord.Interaction):
                         reason          = "Match TransPlace",
                     )
                 elif type(channel) is discord.StageChannel:
+                    zchannel: discord.StageChannel
+                    kwargs = dict()
+                    for attr in ("name", "position", "nsfw","permissions_synced","rtc_region","video_quality_mode"):
+                        if getattr(zchannel, attr) != getattr(channel, attr):
+                            if attr == "permissions_synced":
+                                kwargs["sync_permissions"] = getattr(channel, attr)
+                            else:
+                                kwargs[attr] = getattr(channel,attr)
+                    if zchannel.category != zcategory:
+                        kwargs['category'] = zcategory
+                    if zchannel.overwrites != zoverwrites:
+                        kwargs['overwrites'] = zoverwrites
+                    if len(kwargs) == 0:
+                        continue
                     await zchannel.edit(
-                            name            = channel.name,
-                            position        = channel.position,
-                            nsfw            = channel.nsfw,
-                            sync_permissions = channel.permissions_synced,
-                            category        = zcategory,
-                            reason          = "Match TransPlace",
-                            rtc_region      = channel.rtc_region,
-                            video_quality_mode = channel.video_quality_mode,
+                        **kwargs,
+                        reason          = "Match TransPlace",
                     )
                 elif type(channel) is discord.CategoryChannel:
+                    zchannel: discord.CategoryChannel
+                    kwargs = dict()
+                    for attr in ("name", "position", "nsfw"):
+                        if getattr(zchannel, attr) != getattr(channel, attr):
+                            kwargs[attr] = getattr(channel,attr)
+                    if zchannel.overwrites != zoverwrites:
+                        kwargs['overwrites'] = zoverwrites
+                    if len(kwargs) == 0:
+                        continue
                     await zchannel.edit(
-                            name        = channel.name,
-                            position    = channel.position,
-                            nsfw        = channel.nsfw,
-                            reason      = "Match TransPlace",
-                            # overwrites = channel.overwrites,
-                        )
+                        **kwargs,
+                        reason          = "Match TransPlace",
+                    )
                 elif type(channel) is discord.ForumChannel:
+                    zchannel: discord.ForumChannel
+                    kwargs = dict()
+                    for attr in ("name", "topic", "position", "nsfw","permissions_synced","slowmode_delay","default_auto_archive_duration"):
+                        if getattr(zchannel, attr) != getattr(channel, attr):
+                            if attr == "permissions_synced":
+                                kwargs["sync_permissions"] = getattr(channel, attr)
+                            else:
+                                kwargs[attr] = getattr(channel,attr)
+                    if zchannel.category != zcategory:
+                        kwargs['category'] = zcategory
+                    if zchannel.overwrites != zoverwrites:
+                        kwargs['overwrites'] = zoverwrites
+                    if len(kwargs) == 0:
+                        continue
                     await zchannel.edit(
-                            names           = channel.name,
-                            topic           = channel.topic,
-                            position        = channel.position,
-                            nsfw            = channel.nsfw,
-                            sync_permissions = channel.permissions_synced,
-                            category        = zcategory,
-                            slowmode_delay  = channel.slowmode_delay,
-                            # type            = type(channel),
-                            reason          = "Match TransPlace",
-                            # overwrites      = channel.overwrites,
-                            default_auto_archive_duration = channel.default_auto_archive_duration,
+                        **kwargs,
+                        reason          = "Match TransPlace",
                     )
 
+                # print(len(kwargs),kwargs)
             if type(zchannel) in [discord.TextChannel, discord.ForumChannel]:
                 pass
                 # for thread in channel.threads:
@@ -351,19 +418,32 @@ async def refresh(itx: discord.Interaction):
                 #         )
                 #         ## this only works for Forum channels. Gotta copy paste it with a text channel's threads too
 
+        search = collection.find({})
+        matchingids = [item['matchingid'] for item in search]
+        for zchannel in client.pasteGuild.channels:
+            if zchannel.id not in matchingids and zchannel.id not in blacklist:
+                query = {"matchingid": zchannel.id}
+                collection.delete_one(query)
+                await zchannel.delete()
+                # print(f"DELETED {zchannel.name}!")
+        # for item in search:
+        #     id = item['id']
+        #     matchingid = item['matchingid']
+        #     if id in blacklist or matchingid in blacklist:
+        #         continue
+        #     out = client.get_channel(matchingid)
+        #     if out is None:
+        #         out = client.pasteGuild.get_role(matchingid)
+        #         if out is None:
+        #             raise
+        #     if out is None:
+        #         await out.delete()
+
+
         await itx.followup.send("Successfully updated the server to the most recent layout and roles.",ephemeral=True)
-    except:
+    except Exception:
         await itx.followup.send("Couldn't update everything! Something went wrong!",ephemeral=True)
         raise
-
-@channeltracker.command(name="fix",description="Delete all roles in the guild")
-async def fix(itx:discord.Interaction):
-    for role in client.pasteGuild.roles:
-        print(repr(role))
-        try:
-            await role.delete()
-        except Exception as ex:
-            print(repr(ex))
 
 @channeltracker.command(name="blacklist", description="Disable certain channel's updates")
 @app_commands.choices(mode=[
@@ -380,7 +460,7 @@ async def blacklist(itx: discord.Interaction, mode: int, id: str):
         try:
             id = int(id)
         except ValueError:
-            await itx.reponse.send_message("The ID has to only contain numbers!")
+            await itx.response.send_message("The ID has to only contain numbers!")
             return
         collection = TrackerDB["blacklist"]
         query = {"name":"blacklist"}
@@ -395,7 +475,7 @@ async def blacklist(itx: discord.Interaction, mode: int, id: str):
 
     elif mode == 2: # Remove item from blacklist
         try:
-            string = int(string)
+            id = int(id)
         except ValueError:
             await itx.response.send_message("To remove an item from the blacklist, you must give the id of the item you want to remove. This should be a number... You didn't give a number...", ephemeral=True)
             return
@@ -406,19 +486,17 @@ async def blacklist(itx: discord.Interaction, mode: int, id: str):
             await itx.response.send_message("There are no items on the blacklist, so you can't remove any either...",ephemeral=True)
             return
         blacklist = search["list"]
-        length = len(blacklist)
 
         try:
-            del blacklist[string]
+            del blacklist[id]
         except IndexError:
-            cmd_mention = self.client.getCommandMention("channeltracker blacklist")
-            await itx.response.send_message(f"Couldn't delete that ID, because there isn't any item on the list with that ID.. Use {cmd_mention}` mode:Check` to see the IDs assigned to each item on the list",ephemeral=True)
+            await itx.response.send_message(f"Couldn't delete that ID, because there isn't any item on the list with that ID.. Use `/channeltracker blacklist mode:Check` to see the IDs assigned to each item on the list",ephemeral=True)
             return
         collection.update_one(query, {"$set":{f"list":blacklist}}, upsert=True)
-        await itx.response.send_message(f"Successfully removed '{string}' from the blacklist. It now contains {len(blacklist)} string{'s'*(len(blacklist)!=1)}.", ephemeral=True)
+        await itx.response.send_message(f"Successfully removed '{id}' from the blacklist. It now contains {len(blacklist)} ID{'s'*(len(blacklist)!=1)}.", ephemeral=True)
     elif mode == 3:
         collection = TrackerDB["blacklist"]
-        query = {"user": itx.user.id}
+        query = {"name": "blacklist"}
         search = collection.find_one(query)
         if search is None:
             await itx.response.send_message("There are no IDs in the blacklist, so.. nothing to list here....",ephemeral=True)
@@ -430,7 +508,43 @@ async def blacklist(itx: discord.Interaction, mode: int, id: str):
         for id in range(length):
             ans.append(f"`{id}`: {blacklist[id]}, <#{blacklist[id]}>, <@{blacklist[id]}>, <@&{blacklist[id]}>")
         ans = '\n'.join(ans)
-        await itx.response.send_message(f"Found {length} IDs{'s'*(length!=1)}:\n{ans}",ephemeral=True)
+        await itx.response.send_message(f"Found {length} ID{'s'*(length!=1)}:\n{ans}",ephemeral=True)
+
+@channeltracker.command(name="relink", description="Link two channels or roles together (prevent overwriting)")
+@app_commands.describe(id="ID from the copied server",matchingid="ID from the pasted server")
+async def relink(itx: discord.Interaction, id: str, matchingid: str):
+    try:
+        id = int(id)
+    except ValueError:
+        await itx.response.send_message(f"Your `ID` has to be a channel or role ID! (not '{id}')",ephemeral=True)
+        return
+    try:
+        matchingid = int(matchingid)
+    except ValueError:
+        await itx.response.send_message(f"Your `Matching ID` has to be a channel or role ID! (not '{matchingid}')",ephemeral=True)
+        return
+    if id == matchingid:
+        await itx.response.send_message("Warning! Your `ID` and `Matching ID` shouldn't be the same!", ephemeral=True)
+        return
+
+    collection = TrackerDB["ids"]
+    query   = {"id":id}
+    # search = collection.find_one(query)
+    # if search is not None:
+    #     if search['id'] == search['matchingid']:
+
+
+    collection.update_one(query, {"$set":{"matchingid":matchingid}}, upsert=True)
+    await itx.response.send_message(f"Successfully re-linked `{id}` to `{matchingid}`.",ephemeral=True)
+
+@channeltracker.command(name="fix",description="Delete all roles in the guild")
+async def fix(itx: discord.Interaction):
+    for role in client.pasteGuild.roles:
+        print(repr(role))
+        try:
+            await role.delete()
+        except Exception as ex:
+            print(repr(ex))
 
 # @client.event
 # async def on_guild_update(before, after):
@@ -442,18 +556,6 @@ async def blacklist(itx: discord.Interaction, mode: int, id: str):
 #
 # @client.event
 # async def on_guild_stickers_update(guild, before, after):
-#     pass
-#
-# @client.event
-# async def on_guild_role_create(role):
-#     pass
-#
-# @client.event
-# async def on_guild_role_delete(role):
-#     pass
-#
-# @client.event
-# async def on_guild_role_update(role):
 #     pass
 
 
