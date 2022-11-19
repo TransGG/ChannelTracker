@@ -58,9 +58,9 @@ async def setup_hook():
 
 @client.tree.command(name="update",description="Update slash-commands")
 async def updateCmds(itx: discord.Interaction):
-    # if not isStaff(itx):
-    #     await itx.response.send_message("Only Staff can update the slash commands (to prevent ratelimiting)", ephemeral=True)
-    #     return
+    if itx.user.id not in [262913789375021056, 317731855317336067, 280885861984239617]: #Mia, Minion, Cleo
+        await itx.response.send_message("Only 3 people can update the slash commands (to prevent ratelimiting)", ephemeral=True)
+        return
     await client.tree.sync()
     # commandList = await client.tree.fetch_commands()
     # client.commandList = commandList
