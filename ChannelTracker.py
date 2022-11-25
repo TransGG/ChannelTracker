@@ -41,9 +41,8 @@ client = Bot(
 @client.event
 async def on_ready():
     client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 981615050664075404
-    client.pasteGuild = client.get_guild(1034084825482661939) # TransPlace [Copy]
+    client.pasteGuild = client.get_guild(981615050664075404) # TransPlace [Copy]
     print(f"[#] Logged in as {client.user}, in version {version}")#,color="green")
-    await client.tree.sync()
     # await client.logChannel.send(f":white_check_mark: **Started ChannelTracker** in version {version}")
 
 @client.event
