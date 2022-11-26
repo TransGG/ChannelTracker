@@ -128,8 +128,9 @@ client.tree.add_command(channeltracker)
 async def refresh(itx: discord.Interaction):
     try:
         global guildUpdates
+        statusMessage = "Fetching id and blacklist data..."
         await itx.response.defer(ephemeral=True)
-
+        await itx.followup.send(statusMessage)
         collection   = TrackerDB["ids"]
         blcollection = TrackerDB["blacklist"]
         blquery   = {"name": "blacklist"}
@@ -139,6 +140,24 @@ async def refresh(itx: discord.Interaction):
         else:
             blacklist = search['list']
         role: discord.Role
+
+
+        if len(guildUpdates) < 2:
+            #ignore but still continue the command
+            pass
+        elif guildUpdates[0]+600 > mktime(datetime.now().timetuple()):
+            await itx.edit_original_response(content=f"You can't update the server more than twice in 10 minutes! (bcuz discord :P)\n" +
+                                                     f"You can update it again <t:{guildUpdates[0]+600}:R> (<t:{guildUpdates[0]+600}:t>).")
+            # ignore entirely, don't continue command
+            return
+        else:
+            # clear and continue command
+            guildUpdates = []
+        guildUpdates.append(int(mktime(datetime.now().timetuple())))
+
+        statusMessage += "\nCreating new roles"
+        await itx.edit_original_response(content=statusMessage)
+
         for role in client.copyGuild.roles:
             query     = {"id": role.id}
             print("role: ",role.name)
@@ -185,20 +204,8 @@ async def refresh(itx: discord.Interaction):
         # await itx.followup.send("Successfully updated the roles.",ephemeral=True)
         # return
 
-        if len(guildUpdates) < 2:
-            #ignore but still continue the command
-            pass
-        elif guildUpdates[0]+600 > mktime(datetime.now().timetuple()):
-            await itx.response.send_message(f"You can't update the server more than twice in 10 minutes! (bcuz discord :P)\n" +
-                                            f"You can update it again <t:{guildUpdates[0]+600}:R> (<t:{guildUpdates[0]+600}:t>).", ephemeral = True)
-            # ignore entirely, don't continue command
-            return
-        else:
-            # clear and continue command
-            guildUpdates = []
-        guildUpdates.append(int(mktime(datetime.now().timetuple())))
-
-
+        statusMessage += "\nAdding new channels"
+        await itx.edit_original_response(content=statusMessage)
         for channel in client.copyGuild.channels:
             print("channel: ",channel)
             collection = TrackerDB["ids"]
@@ -426,6 +433,8 @@ async def refresh(itx: discord.Interaction):
                 #         )
                 #         ## this only works for Forum channels. Gotta copy paste it with a text channel's threads too
 
+        statusMessage += "\nDeleting unused channels (if not in blacklist)"
+        await itx.edit_original_response(content=statusMessage)
         search = collection.find({})
         matchingids = [item['matchingid'] for item in search]
         for zchannel in client.pasteGuild.channels:
@@ -433,6 +442,14 @@ async def refresh(itx: discord.Interaction):
                 query = {"matchingid": zchannel.id}
                 collection.delete_one(query)
                 await zchannel.delete()
+
+        statusMessage += "\nDeleting unused roles (if not in blacklist)"
+        await itx.edit_original_response(content=statusMessage)
+        for zrole in client.pasteGuild.roles:
+            if zrole.id not in matchingids and zrole.id not in blacklist:
+                query = {"matchingid": zrole.id}
+                collection.delete_one(query)
+                await zrole.delete()
                 # print(f"DELETED {zchannel.name}!")
         # for item in search:
         #     id = item['id']
