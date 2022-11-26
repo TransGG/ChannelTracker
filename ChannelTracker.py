@@ -213,10 +213,10 @@ async def refresh(itx: discord.Interaction):
             zchannel: [discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel]
             zchannel                           = getMatch(channel, client.pasteGuild.channels)
             zcategory: discord.CategoryChannel = getMatch(channel.category, client.pasteGuild.categories)
-            if channel.id in blacklist or channel.category in blacklist:
+            if channel.id in blacklist or channel.category.id in blacklist:
                 continue
             if zchannel is not None:
-                if zchannel.id in blacklist or zchannel.category in blacklist:
+                if zchannel.id in blacklist or zchannel.category.id in blacklist:
                     continue
             zoverwrites = {}
             for target in channel.overwrites:
