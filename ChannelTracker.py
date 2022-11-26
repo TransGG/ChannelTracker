@@ -14,7 +14,7 @@ mongoURI = open("mongo.txt","r").read()
 cluster = MongoClient(mongoURI)
 TrackerDB = cluster["TrackerDB"]
 
-version = "1.0.1"
+version = "1.0.2"
 
 intents = discord.Intents.default()
 intents.message_content = False
@@ -213,7 +213,7 @@ async def refresh(itx: discord.Interaction):
             zchannel: [discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel]
             zchannel                           = getMatch(channel, client.pasteGuild.channels)
             zcategory: discord.CategoryChannel = getMatch(channel.category, client.pasteGuild.categories)
-            if channel.id in blacklist or channel.category.id in blacklist:
+            if channel.id in blacklist:
                 continue
             if channel.category is not None:
                 if channel.category.id in blacklist:
