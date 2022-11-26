@@ -165,7 +165,7 @@ async def refresh(itx: discord.Interaction):
                         mentionable  = role.mentionable,
                         reason       = "Match TransPlace",
                 )
-
+                await zrole.edit(position=role.position, reason="Set correct role position")
                 collection.update_one(query, {"$set":{"id":role.id,"matchingid":zrole.id}}, upsert=True)
             else:
                 kwargs = dict()
@@ -204,12 +204,12 @@ async def refresh(itx: discord.Interaction):
             collection = TrackerDB["ids"]
             query = {"id": channel.id}
             zchannel: [discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel]
-            zchannel                               = getMatch(channel, client.pasteGuild.channels)
+            zchannel                           = getMatch(channel, client.pasteGuild.channels)
             zcategory: discord.CategoryChannel = getMatch(channel.category, client.pasteGuild.categories)
-            if channel.id in blacklist:
+            if channel.id in blacklist or channel.category in blacklist:
                 continue
             if zchannel is not None:
-                if zchannel.id in blacklist:
+                if zchannel.id in blacklist or zchannel.category in blacklist:
                     continue
             zoverwrites = {}
             for target in channel.overwrites:
