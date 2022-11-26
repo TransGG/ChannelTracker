@@ -40,7 +40,7 @@ client = Bot(
 
 @client.event
 async def on_ready():
-    client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 981615050664075404
+    client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 1034084825482661939
     client.pasteGuild = client.get_guild(981615050664075404) # TransPlace [Copy]
     print(f"[#] Logged in as {client.user}, in version {version}")#,color="green")
     # await client.logChannel.send(f":white_check_mark: **Started ChannelTracker** in version {version}")
@@ -350,7 +350,7 @@ async def refresh(itx: discord.Interaction):
                     if zchannel.category != zcategory:
                         kwargs['category'] = zcategory
                     if zchannel.overwrites != zoverwrites:
-                        kwargs['category'] = zoverwrites
+                        kwargs['overwrites'] = zoverwrites
                     if len(kwargs) == 0:
                         continue
                     await zchannel.edit(
@@ -547,12 +547,20 @@ async def relink(itx: discord.Interaction, id: str, matchingid: str):
 
 @channeltracker.command(name="fix",description="Delete all roles in the guild")
 async def fix(itx: discord.Interaction):
-    for role in client.pasteGuild.roles:
-        print(repr(role))
-        try:
-            await role.delete()
-        except Exception as ex:
-            print(repr(ex))
+    await itx.response.defer(ephemeral=True)
+    try:
+        unavailable = []
+        for role in client.pasteGuild.roles:
+            print(repr(role))
+            try:
+                await role.delete()
+            except Exception as ex:
+                unavailable.append(repr(role))
+                print(repr(ex))
+        spacer = "\n " # required cause f-strings can't have backslashes
+        await itx.followup.send(f"Successfully deleted all the roles, except for:\n {spacer.join(unavailable)[:1500]}")
+    except:
+        await itx.followup.send(f"Something went horribly wrong, it seems.")
 
 # @client.event
 # async def on_guild_update(before, after):
