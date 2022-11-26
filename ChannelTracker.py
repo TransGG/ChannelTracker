@@ -258,11 +258,14 @@ async def refresh(itx: discord.Interaction):
                             reason          = "Match TransPlace",
                     )
                 elif type(channel) is discord.VoiceChannel:
+                    _bitrate = channel.bitrate
+                    if _bitrate > 96000:
+                        _bitrate = 96000
                     nchannel = await zcategory.create_voice_channel(
                             channel.name,
                             overwrites      = zoverwrites,
                             position        = channel.position,
-                            bitrate         = channel.bitrate,
+                            bitrate         = _bitrate,
                             user_limit      = channel.user_limit,
                             rtc_region      = channel.rtc_region,
                             video_quality_mode = channel.video_quality_mode,
@@ -337,6 +340,11 @@ async def refresh(itx: discord.Interaction):
                         if getattr(zchannel, attr) != getattr(channel, attr):
                             if attr == "permissions_synced":
                                 kwargs["sync_permissions"] = getattr(channel, attr)
+                            elif attr == "bitrate":
+                                _bitrate = getattr(channel, attr)
+                                if _bitrate > 96000:
+                                    _bitrate = 96000
+                                kwargs["bitrate"] = _bitrate
                             else:
                                 kwargs[attr] = getattr(channel,attr)
                     if zchannel.category != zcategory:
