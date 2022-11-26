@@ -453,23 +453,6 @@ async def refresh(itx: discord.Interaction):
                     await zrole.delete()
                 except:
                     pass #can be their own role, or a role above their permission, or the @ everyone role
-
-
-
-                try:
-                    unavailable = []
-                    for role in client.pasteGuild.roles:
-                        print(repr(role))
-                        try:
-                            await role.delete()
-                        except Exception as ex:
-                            unavailable.append(repr(role))
-                            print(repr(ex))
-                    spacer = "\n "  # required cause f-strings can't have backslashes
-                    await itx.followup.send(
-                        f"Successfully deleted all the roles, except for:\n {spacer.join(unavailable)[:1500]}")
-                except:
-                    await itx.followup.send(f"Something went horribly wrong, it seems.")
                 # print(f"DELETED {zchannel.name}!")
         # for item in search:
         #     id = item['id']
