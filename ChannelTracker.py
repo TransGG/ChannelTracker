@@ -14,7 +14,7 @@ mongoURI = open("mongo.txt","r").read()
 cluster = MongoClient(mongoURI)
 TrackerDB = cluster["TrackerDB"]
 
-version = "1.0.2"
+version = "1.0.3"
 
 intents = discord.Intents.default()
 intents.message_content = False
@@ -42,6 +42,12 @@ client = Bot(
 async def on_ready():
     client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 1034084825482661939
     client.pasteGuild = client.get_guild(981615050664075404) # TransPlace [Copy]
+    if open('token.txt',"r").read().startswith("MTA"):
+        client.copyGuild = client.get_guild(981615050664075404)  # TransPlace   # testing server: 1034084825482661939
+        client.pasteGuild = client.get_guild(1034084825482661939)  # TransPlace [Copy]
+    if client.copyGuild is None or client.pasteGuild is None:
+        print("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
+        raise Exception("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
     print(f"[#] Logged in as {client.user}, in version {version}")#,color="green")
     # await client.logChannel.send(f":white_check_mark: **Started ChannelTracker** in version {version}")
 
@@ -156,6 +162,8 @@ async def refresh(itx: discord.Interaction):
         guildUpdates.append(int(mktime(datetime.now().timetuple())))
 
         statusMessage += "\nCreating new roles"
+        objectCreations = 0
+        objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
 
         for role in client.copyGuild.roles:
@@ -186,6 +194,7 @@ async def refresh(itx: discord.Interaction):
                 )
                 await zrole.edit(position=role.position, reason="Set correct role position")
                 collection.update_one(query, {"$set":{"id":role.id,"matchingid":zrole.id}}, upsert=True)
+                objectCreations += 1
             else:
                 kwargs = dict()
                 for attr in ("name", "permissions", "colour","hoist","mentionable","position"):
@@ -198,13 +207,16 @@ async def refresh(itx: discord.Interaction):
                             **kwargs,
                             reason       = "Match TransPlace",
                     )
+                    objectUpdates += 1
                 except Exception as ex:
                     print(repr(ex))
 
         # await itx.followup.send("Successfully updated the roles.",ephemeral=True)
         # return
-
+        statusMessage += f" (Created {objectCreations} and updated {objectUpdates} roles)"
         statusMessage += "\nAdding new channels"
+        objectCreations = 0
+        objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
         for channel in client.copyGuild.channels:
             print("channel: ",channel)
@@ -258,6 +270,7 @@ async def refresh(itx: discord.Interaction):
                             collection.update_one(query, {"$set":{"id":category.id,"matchingid":zcategory.id}}, upsert=True)
                         else:
                             nchannel = zcategory
+                            objectCreations += 1
                 if type(channel) is discord.TextChannel:
                     nchannel = await zcategory.create_text_channel(
                             channel.name,
@@ -310,6 +323,7 @@ async def refresh(itx: discord.Interaction):
                     #already handled in zcategory is None, cause category.category is None.
                 else:
                     raise Exception("Channel has type that was unaccounted for!")
+                objectCreations += 1
 
                 collection.update_one(query, {"$set":{"id":channel.id,"matchingid":nchannel.id}}, upsert=True)
             else:
@@ -325,6 +339,7 @@ async def refresh(itx: discord.Interaction):
                             )
                         query = {"id": channel.category.id}
                         collection.update_one(query, {"$set":{"matchingid":zcategory.id}}, upsert=True)
+                        objectCreations += 1
                 else:
                     zcategory = None
                 if type(zchannel) is discord.TextChannel:
@@ -422,6 +437,7 @@ async def refresh(itx: discord.Interaction):
                         **kwargs,
                         reason          = "Match TransPlace",
                     )
+                objectUpdates += 1
 
                 # print(len(kwargs),kwargs)
             if type(zchannel) in [discord.TextChannel, discord.ForumChannel]:
@@ -439,7 +455,9 @@ async def refresh(itx: discord.Interaction):
                 #         )
                 #         ## this only works for Forum channels. Gotta copy paste it with a text channel's threads too
 
+        statusMessage += f" (Created {objectCreations} and updated {objectUpdates} channels)"
         statusMessage += "\nDeleting unused channels (if not in blacklist)"
+        objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
         search = collection.find({})
         matchingids = [item['matchingid'] for item in search]
@@ -448,8 +466,11 @@ async def refresh(itx: discord.Interaction):
                 query = {"matchingid": zchannel.id}
                 collection.delete_one(query)
                 await zchannel.delete()
+                objectUpdates += 1
 
+        statusMessage = f" (Deleted {objectUpdates} channels)"
         statusMessage += "\nDeleting unused roles (if not in blacklist)"
+        objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
         for zrole in client.pasteGuild.roles:
             if zrole.id not in matchingids and zrole.id not in blacklist:
@@ -457,6 +478,7 @@ async def refresh(itx: discord.Interaction):
                 collection.delete_one(query)
                 try:
                     await zrole.delete()
+                    objectUpdates += 1
                 except:
                     pass #can be their own role, or a role above their permission, or the @ everyone role
                 # print(f"DELETED {zchannel.name}!")
@@ -472,11 +494,16 @@ async def refresh(itx: discord.Interaction):
         #             raise
         #     if out is None:
         #         await out.delete()
-
+        statusMessage += f" (Deleted {objectUpdates} roles)"
+        await itx.edit_original_response(content=statusMessage)
 
         await itx.followup.send("Successfully updated the server to the most recent layout and roles.",ephemeral=True)
     except Exception:
-        await itx.followup.send("Couldn't update everything! Something went wrong!",ephemeral=True)
+        import traceback  # , logging
+        msg = f"\n\n\n\n[{datetime.now().strftime('%H:%M:%S.%f')}] [ERROR]:\n\n" + traceback.format_exc()
+        msg = msg.replace("\\", "\\\\").replace("*", "\\*").replace("`", "\\`").replace("_", "\\_").replace("~~",                                                                                              "\\~\\~")
+        embed = discord.Embed(color=discord.Colour.from_rgb(r=181, g=69, b=80), title='Error log', description=msg)
+        await itx.followup.send("Couldn't update everything! Something went wrong!",embed=embed, ephemeral=True)
         raise
 
 @channeltracker.command(name="blacklist", description="Disable certain channel's updates")
