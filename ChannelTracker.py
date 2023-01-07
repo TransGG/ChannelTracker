@@ -468,7 +468,7 @@ async def refresh(itx: discord.Interaction):
                 await zchannel.delete()
                 objectUpdates += 1
 
-        statusMessage = f" (Deleted {objectUpdates} channels)"
+        statusMessage += f" (Deleted {objectUpdates} channels)"
         statusMessage += "\nDeleting unused roles (if not in blacklist)"
         objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
