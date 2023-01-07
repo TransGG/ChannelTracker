@@ -42,9 +42,9 @@ client = Bot(
 async def on_ready():
     client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 1034084825482661939
     client.pasteGuild = client.get_guild(981615050664075404) # TransPlace [Copy]
-    if open('token.txt',"r").read().startswith("MTA"):
-        client.copyGuild = client.get_guild(981615050664075404)  # TransPlace   # testing server: 1034084825482661939
-        client.pasteGuild = client.get_guild(1034084825482661939)  # TransPlace [Copy]
+    if open('token.txt',"r").read().endswith("NEXPRir4"):
+        client.copyGuild = client.get_guild(981615050664075404)  # TransPlace [Copy]
+        client.pasteGuild = client.get_guild(1034084825482661939)  # Dev Copy Copy testing server
     if client.copyGuild is None or client.pasteGuild is None:
         print("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
         raise Exception("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
