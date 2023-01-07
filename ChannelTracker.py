@@ -14,7 +14,7 @@ mongoURI = open("mongo.txt","r").read()
 cluster = MongoClient(mongoURI)
 TrackerDB = cluster["TrackerDB"]
 
-version = "1.0.3"
+version = "1.0.4"
 
 intents = discord.Intents.default()
 intents.message_content = False
@@ -310,7 +310,6 @@ async def refresh(itx: discord.Interaction):
                     nchannel = await zcategory.create_forum(
                             channel.name,
                             topic           = channel.topic,
-                            category        = channel.category,
                             position        = channel.position,
                             nsfw            = channel.nsfw,
                             overwrites      = zoverwrites,
