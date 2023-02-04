@@ -42,7 +42,7 @@ client = Bot(
 async def on_ready():
     client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 1034084825482661939
     client.pasteGuild = client.get_guild(981615050664075404) # TransPlace [Copy]
-    if open('token.txt',"r").read().endswith("NEXPRir4"):
+    if open('token.txt',"r").read().endswith("NEXPRir4\n"):
         client.copyGuild = client.get_guild(981615050664075404)  # TransPlace [Copy]
         client.pasteGuild = client.get_guild(1034084825482661939)  # Dev Copy Copy testing server
     if client.copyGuild is None or client.pasteGuild is None:
@@ -613,6 +613,63 @@ async def fix(itx: discord.Interaction):
         await itx.followup.send(f"Successfully deleted all the roles, except for:\n {spacer.join(unavailable)[:1500]}")
     except:
         await itx.followup.send(f"Something went horribly wrong, it seems.")
+
+@channeltracker.command(name="check_link", description="Check if an ID is connected to the main server")
+@app_commands.describe(id="ID from the copied server")
+async def check_link(itx: discord.Interaction, id: str):
+    try:
+        id = int(id)
+    except ValueError:
+        await itx.response.send_message(f"Your `ID` has to be a channel or role ID! (not '{id}')",ephemeral=True)
+        return
+    collection = TrackerDB["blacklist"]
+    query = {"name": "blacklist"}
+    search = collection.find_one(query)
+    if search is None:
+        blacklist = []
+    else:
+        blacklist = search['list']
+
+    collection = TrackerDB["ids"]
+    query   = {"matchingid":id}
+    search = collection.find(query)
+    other_result = collection.find_one(query)
+    results = []
+    for result in search:
+        blacklist_info = ""
+        if result["id"] in blacklist or result["matchingid"] in blacklist:
+            blacklist_info = " (blacklisted)"
+        results.append(str(result["id"])+blacklist_info)
+    if other_result is not None and len(results) > 1:
+        other_result = f", but the first one is: `{other_result}`"
+    else:
+        other_result = "."
+    if len(results) > 0:
+        await itx.response.send_message(
+            f"`{id}` is linked to `{'`, `'.join(results)}`"+other_result+"\nBe sure to check if its category is blacklisted too.",
+            ephemeral=True)
+    else:
+        await itx.response.send_message(f"I did not find any channels linked to this ID (`{id}`)",ephemeral=True)
+
+    query = {"id": id}
+    search = collection.find(query)
+    other_result = collection.find_one(query)
+    results = []
+    for result in search:
+        blacklist_info = ""
+        if result['id'] in blacklist or result['matchingid'] in blacklist:
+            blacklist_info = " (blacklisted)"
+        results.append(str(result["matchingid"]) + blacklist_info)
+    if other_result is not None and len(results) > 1:
+        other_result = ", but the first one is: " + str(other_result)
+    else:
+        other_result = "."
+    if len(results) > 0:
+        await itx.followup.send(
+            content=f"For the reverse (if you swapped them around and want to see if a CopyServer channel connected to any PasteServer channel:\n" +
+                    f"`{id}` is linked to `{', '.join(results)}`" + other_result + "\nBe sure to check if its category is blacklisted too.",
+            ephemeral=True)
+
 
 # @client.event
 # async def on_guild_update(before, after):
