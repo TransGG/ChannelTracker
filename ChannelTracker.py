@@ -42,13 +42,15 @@ client = Bot(
 async def on_ready():
     client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 1034084825482661939
     client.pasteGuild = client.get_guild(981615050664075404) # TransPlace [Copy]
+    is_dev = 0
     if open('token.txt',"r").read().endswith("NEXPRir4\n"):
+        is_dev = 1
         client.copyGuild = client.get_guild(981615050664075404)  # TransPlace [Copy]
         client.pasteGuild = client.get_guild(1034084825482661939)  # Dev Copy Copy testing server
     if client.copyGuild is None or client.pasteGuild is None:
         print("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
         raise Exception("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
-    print(f"[#] Logged in as {client.user}, in version {version}")#,color="green")
+    print(f"[#] Logged in as {client.user}, in version {version}" + " (Developer Mode)"*is_dev)#,color="green")
     # await client.logChannel.send(f":white_check_mark: **Started ChannelTracker** in version {version}")
 
 @client.event
@@ -74,7 +76,7 @@ async def updateCmds(itx: discord.Interaction):
 
 
 
-def getMatch(snowflake: discord.abc.Snowflake, location):
+def getMatch(snowflake: discord.abc.Snowflake | int, location):
     # try:
     #     collection = TrackerDB["blacklist"]
     #     query = {"id": snowflake.id}
@@ -86,11 +88,23 @@ def getMatch(snowflake: discord.abc.Snowflake, location):
     if snowflake is None:
         return None
     collection = TrackerDB["ids"]
-    query = {"id": snowflake.id}
+    if isinstance(snowflake, discord.abc.Snowflake):
+        query = {"id": snowflake.id}
+    else:
+        query = {"id": int(snowflake)}
     item = collection.find_one(query)
     if item is None:
         return None
 
+    if type(location) is list:
+        try:
+            for x in location:
+                result = discord.utils.find(lambda r: r.id == query["id"], x)
+                if result is not None:
+                    return result
+            return None
+        except TypeError:
+            pass
     result = discord.utils.find(lambda r: r.id == item["matchingid"], location)
     if result is None:
         return None
@@ -321,12 +335,11 @@ async def refresh(itx: discord.Interaction):
                     assert isinstance(nchannel, discord.CategoryChannel)
                     #already handled in zcategory is None, cause category.category is None.
                 else:
-                    raise Exception("Channel has type that was unaccounted for!")
+                    raise Exception(f"Channel has type that was unaccounted for! (Type = {channel.__class__.__name__})")
                 objectCreations += 1
 
                 collection.update_one(query, {"$set":{"id":channel.id,"matchingid":nchannel.id}}, upsert=True)
             else:
-                kwargs = []
                 if channel.category is not None:
                     zcategory: discord.CategoryChannel = getMatch(channel.category, client.pasteGuild.categories)
                     if zcategory is None:
@@ -459,9 +472,13 @@ async def refresh(itx: discord.Interaction):
         objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
         search = collection.find({})
-        matchingids = [item['matchingid'] for item in search]
+        ids = {item['matchingid']: item['id'] for item in search}
         for zchannel in client.pasteGuild.channels:
-            if zchannel.id not in matchingids and zchannel.id not in blacklist:
+            if zchannel.id in ids: # find if counterpart still exists
+                if not getMatch(ids[zchannel.id], client.copyGuild.channels):
+                    query = {"matchingid": zchannel.id}
+                    collection.delete_one(query)
+            elif zchannel.id not in blacklist:
                 query = {"matchingid": zchannel.id}
                 collection.delete_one(query)
                 await zchannel.delete()
@@ -472,7 +489,11 @@ async def refresh(itx: discord.Interaction):
         objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
         for zrole in client.pasteGuild.roles:
-            if zrole.id not in matchingids and zrole.id not in blacklist:
+            if zrole.id in ids: # find if counterpart still exists
+                if not getMatch(ids[zrole.id], client.copyGuild.roles):
+                    query = {"matchingid": zrole.id}
+                    collection.delete_one(query)
+            elif zrole.id not in blacklist:
                 query = {"matchingid": zrole.id}
                 collection.delete_one(query)
                 try:
@@ -566,7 +587,12 @@ async def blacklist(itx: discord.Interaction, mode: int, id: str):
 
         ans = []
         for id in range(length):
-            ans.append(f"`{id}`: {blacklist[id]}, <#{blacklist[id]}>, <@{blacklist[id]}>, <@&{blacklist[id]}>")
+            if blacklist[id] in [x.id for x in client.pasteGuild.channels] + [x.id for x in client.copyGuild.channels]:
+                ans.append(f"`{id}`: <#{blacklist[id]}> (channel: {blacklist[id]})")
+            elif blacklist[id] in [x.id for x in client.pasteGuild.roles] + [x.id for x in client.copyGuild.roles]:
+                ans.append(f"`{id}`: <@&{blacklist[id]}> (role: {blacklist[id]})")
+            else: # if it couldn't find the id in the roles or channels, send ID only
+                ans.append(f"`{id}`: {blacklist[id]} (couldn't find type it was)")
         ans = '\n'.join(ans)
         await itx.response.send_message(f"Found {length} ID{'s'*(length!=1)}:\n{ans}",ephemeral=True)
 
