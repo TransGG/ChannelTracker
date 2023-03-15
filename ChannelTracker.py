@@ -470,32 +470,37 @@ async def refresh(itx: discord.Interaction):
         statusMessage += f" (Created {objectCreations} and updated {objectUpdates} channels)"
         statusMessage += "\nDeleting unused channels (if not in blacklist)"
         objectUpdates = 0
+        objectUnused = 0
         await itx.edit_original_response(content=statusMessage)
         search = collection.find({})
         ids = {item['matchingid']: item['id'] for item in search}
         for zchannel in client.pasteGuild.channels:
-            if zchannel.id in ids: # find if counterpart still exists
-                if not getMatch(ids[zchannel.id], client.copyGuild.channels):
+            if zchannel.id not in blacklist:
+                if zchannel.id in ids: # find if counterpart still exists
+                    if not getMatch(ids[zchannel.id], [client.copyGuild.channels]):
+                        query = {"matchingid": zchannel.id}
+                        collection.delete_one(query)
+                        objectUnused += 1
+                else:
                     query = {"matchingid": zchannel.id}
                     collection.delete_one(query)
-            elif zchannel.id not in blacklist:
-                query = {"matchingid": zchannel.id}
-                collection.delete_one(query)
-                await zchannel.delete()
-                objectUpdates += 1
+                    await zchannel.delete()
+                    objectUpdates += 1
 
-        statusMessage += f" (Deleted {objectUpdates} channels)"
+        statusMessage += f" (Deleted {objectUpdates} channels, and {objectUnused} vanished)"
         statusMessage += "\nDeleting unused roles (if not in blacklist)"
         objectUpdates = 0
+        objectUnused = 0
         await itx.edit_original_response(content=statusMessage)
         for zrole in client.pasteGuild.roles:
-            if zrole.id in ids: # find if counterpart still exists
-                if not getMatch(ids[zrole.id], client.copyGuild.roles):
+            if zrole.id not in blacklist:
+                if zrole.id in ids: # find if counterpart still exists
+                    if not getMatch(ids[zrole.id], [client.copyGuild.roles]):
+                        query = {"matchingid": zrole.id}
+                        collection.delete_one(query)
+                else:
                     query = {"matchingid": zrole.id}
                     collection.delete_one(query)
-            elif zrole.id not in blacklist:
-                query = {"matchingid": zrole.id}
-                collection.delete_one(query)
                 try:
                     await zrole.delete()
                     objectUpdates += 1
@@ -514,7 +519,7 @@ async def refresh(itx: discord.Interaction):
         #             raise
         #     if out is None:
         #         await out.delete()
-        statusMessage += f" (Deleted {objectUpdates} roles)"
+        statusMessage += f" (Deleted {objectUpdates} roles, and {objectUnused} vanished)"
         await itx.edit_original_response(content=statusMessage)
 
         await itx.followup.send("Successfully updated the server to the most recent layout and roles.",ephemeral=True)
@@ -667,7 +672,7 @@ async def check_link(itx: discord.Interaction, id: str):
             blacklist_info = " (blacklisted)"
         results.append(str(result["id"])+blacklist_info)
     if other_result is not None and len(results) > 1:
-        other_result = f", but the first one is: `{other_result}`"
+        other_result = f", but the first one is: `{other_result['id']}`"
     else:
         other_result = "."
     if len(results) > 0:
@@ -687,7 +692,7 @@ async def check_link(itx: discord.Interaction, id: str):
             blacklist_info = " (blacklisted)"
         results.append(str(result["matchingid"]) + blacklist_info)
     if other_result is not None and len(results) > 1:
-        other_result = ", but the first one is: " + str(other_result)
+        other_result = f", but the first one is: `{other_result['id']}`"
     else:
         other_result = "."
     if len(results) > 0:
