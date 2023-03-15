@@ -498,14 +498,15 @@ async def refresh(itx: discord.Interaction):
                     if not getMatch(ids[zrole.id], [client.copyGuild.roles]):
                         query = {"matchingid": zrole.id}
                         collection.delete_one(query)
+                        objectUnused += 1
                 else:
                     query = {"matchingid": zrole.id}
                     collection.delete_one(query)
-                try:
-                    await zrole.delete()
-                    objectUpdates += 1
-                except:
-                    pass #can be their own role, or a role above their permission, or the @ everyone role
+                    try:
+                        await zrole.delete()
+                        objectUpdates += 1
+                    except:
+                        pass #can be their own role, or a role above their permission, or the @ everyone role
                 # print(f"DELETED {zchannel.name}!")
         # for item in search:
         #     id = item['id']
