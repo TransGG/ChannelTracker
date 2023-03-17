@@ -180,51 +180,53 @@ async def refresh(itx: discord.Interaction):
         objectUpdates = 0
         await itx.edit_original_response(content=statusMessage)
 
-        for role in client.copyGuild.roles:
-            query     = {"id": role.id}
-            print("role: ",role.name)
-            if role.is_default():
-                zrole = None
-                for zrole in client.pasteGuild.roles:
-                    if zrole.is_default():
-                        break
-                assert zrole is not None
-            else:
-                zrole = getMatch(role, client.pasteGuild.roles)
-            if role.id in blacklist:
-                continue
-            if zrole is not None:
-                if zrole.id in blacklist:
+        try:
+            for role in client.copyGuild.roles:
+                query     = {"id": role.id}
+                print("role: ",role.name)
+                if role.is_default():
+                    zrole = None
+                    for zrole in client.pasteGuild.roles:
+                        if zrole.is_default():
+                            break
+                    assert zrole is not None
+                else:
+                    zrole = getMatch(role, client.pasteGuild.roles)
+                if role.id in blacklist:
                     continue
-            if zrole is None:
-                zrole = await client.pasteGuild.create_role(
-                        name         = role.name,
-                        permissions  = role.permissions,
-                        colour       = role.colour,
-                        hoist        = role.hoist,
-                        # display_icon = role.display_icon,
-                        mentionable  = role.mentionable,
-                        reason       = "Match TransPlace",
-                )
-                await zrole.edit(position=role.position, reason="Set correct role position")
-                collection.update_one(query, {"$set":{"id":role.id,"matchingid":zrole.id}}, upsert=True)
-                objectCreations += 1
-            else:
-                kwargs = dict()
-                for attr in ("name", "permissions", "colour","hoist","mentionable","position"):
-                    if getattr(zrole, attr) != getattr(role, attr):
-                        kwargs[attr] = getattr(role,attr)
-                if len(kwargs) == 0:
-                    continue
-                try:
-                    await zrole.edit(
-                            **kwargs,
+                if zrole is not None:
+                    if zrole.id in blacklist:
+                        continue
+                if zrole is None:
+                    zrole = await client.pasteGuild.create_role(
+                            name         = role.name,
+                            permissions  = role.permissions,
+                            colour       = role.colour,
+                            hoist        = role.hoist,
+                            # display_icon = role.display_icon,
+                            mentionable  = role.mentionable,
                             reason       = "Match TransPlace",
                     )
-                    objectUpdates += 1
-                except Exception as ex:
-                    print(repr(ex))
-
+                    await zrole.edit(position=role.position, reason="Set correct role position")
+                    collection.update_one(query, {"$set":{"id":role.id,"matchingid":zrole.id}}, upsert=True)
+                    objectCreations += 1
+                else:
+                    kwargs = dict()
+                    for attr in ("name", "permissions", "colour","hoist","mentionable","position"):
+                        if getattr(zrole, attr) != getattr(role, attr):
+                            kwargs[attr] = getattr(role,attr)
+                    if len(kwargs) == 0:
+                        continue
+                    try:
+                        await zrole.edit(
+                                **kwargs,
+                                reason       = "Match TransPlace",
+                        )
+                        objectUpdates += 1
+                    except Exception as ex:
+                        print(repr(ex))
+        except discord.errors.HTTPException:
+            statusMessage += f" (stopped early because there are 250 roles in the server!!! :warning:) "
         # await itx.followup.send("Successfully updated the roles.",ephemeral=True)
         # return
         statusMessage += f" (Created {objectCreations} and updated {objectUpdates} roles)"
