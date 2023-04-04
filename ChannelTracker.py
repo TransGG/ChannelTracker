@@ -34,14 +34,15 @@ class Bot(commands.Bot):
     tp_entry_allowed_roles = [
         993370301201129572,  # [Head Staff]
         981735525784358962,  # Admin
-        1012954384142966807,  # Sr. Mod,
+        1012954384142966807, # Sr. Mod,
         981735650971775077,  # Moderator
+        1069398630944997486, # Trial Moderator
         959916105294569503,  # Verifier
         1087869446707740773, # Supporter+
         1087871081634861117, # Supporter++
     ]
     tp_notable_roles = [
-        959748411844874240,  # Verified
+        959748411844874240,   # Verified
         1087868304565219420,  # Supporters
         # Custom roles
         1092822871413362783,  # The Princess (pink, Chroma)
@@ -79,6 +80,7 @@ class Bot(commands.Bot):
         1086348907530965022,  # Admin
         1085626122668097637,  # Sr. Mod,
         1085626108034170920,  # Moderator
+        1085626100958363748,  # Trial Moderator
         1085626093014364272,  # Verifier
         1089969043034865814,  # Supporter+
         1089969051788390511,  # Supporter++
