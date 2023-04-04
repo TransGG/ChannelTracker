@@ -14,9 +14,10 @@ mongoURI = open("mongo.txt","r").read()
 cluster = MongoClient(mongoURI)
 TrackerDB = cluster["TrackerDB"]
 
-version = "1.0.4"
+version = "1.1.0"
 
 intents = discord.Intents.default()
+intents.members = True
 intents.message_content = False
 intents.emojis_and_stickers = True
 intents.guilds = True
@@ -28,6 +29,93 @@ class Bot(commands.Bot):
 
     copyGuild: discord.Guild
     pasteGuild: discord.Guild
+    is_dev: int
+
+    tp_entry_allowed_roles = [
+        993370301201129572,  # [Head Staff]
+        981735525784358962,  # Admin
+        1012954384142966807,  # Sr. Mod,
+        981735650971775077,  # Moderator
+        959916105294569503,  # Verifier
+        1087869446707740773, # Supporter+
+        1087871081634861117, # Supporter++
+    ]
+    tp_notable_roles = [
+        959748411844874240,  # Verified
+        1087868304565219420,  # Supporters
+        # Custom roles
+        1092822871413362783,  # The Princess (pink, Chroma)
+
+        1087884342673543370,  # Sage green
+        1087884432687497276,  # Turbo
+        1087884433421516951,  # Viking
+        1087884488547258409,  # Mauve
+        1087884559091257455,  # Butterfly Bush
+        1087884617589198939,  # Red Bud Cherry
+        1087884664787705897,  # Carnation
+        1087884705736695939,  # Mayochup
+        1087884755221102762,  # Color rotation!
+        # Color roles
+        959562647978790912,  # Red
+        959562648394039367,  # Purple
+        959562648767328266,  # Green
+        959562649274826824,  # Pink
+        959562649727811595,  # Orange
+        959562650143047680,  # Yellow
+        959562650373734400,  # Blue
+        964275547742031962,  # Dark Blue
+        964275808057323580,  # Dark green
+        # Pronoun roles
+        959562682736988191,  # He/Him
+        959562683085123624,  # She/Her
+        959562683496149062,  # They/Them
+        964299749236830308,  # It/Its
+        959562683491950603,  # Ask Pronouns
+        964299652113514506,  # Any Pronouns
+    ]
+
+    copy_entry_allowed_roles = [
+        1085626136815476806,  # [Head Staff]
+        1086348907530965022,  # Admin
+        1085626122668097637,  # Sr. Mod,
+        1085626108034170920,  # Moderator
+        1085626093014364272,  # Verifier
+        1089969043034865814,  # Supporter+
+        1089969051788390511,  # Supporter++
+    ]
+    copy_notable_roles = [
+        1085625471972159539,  # Verified
+        1089969060441235506,  # Supporters
+        # Custom roles
+        1092852293755474000,  # The Princess (pink, Chroma)
+
+        1089969347956576386,  # Sage green
+        1089969337978343555,  # Turbo
+        1089969326804705395,  # Viking
+        1089969316742574171,  # Mauve
+        1089969307099861022,  # Butterfly Bush
+        1089969293376098324,  # Red Bud Cherry
+        1089969281606885447,  # Carnation
+        1089969269871218719,  # Mayochup
+        1089969259045716123,  # Color rotation!
+        # Color roles
+        1085625867490840587,  # Red
+        1085625860024967308,  # Purple
+        1085625853066625184,  # Green
+        1085625846083096638,  # Pink
+        1085625839296720966,  # Orange
+        1085625833059790898,  # Yellow
+        1085625824889286827,  # Blue
+        1085625814067978351,  # Dark Blue
+        1085625807654891571,  # Dark green
+        # Pronoun roles
+        1085625778403819683,  # He/Him
+        1085625770988294256,  # She/Her
+        1085625763539210281,  # They/Them
+        1085625757960765450,  # It/Its
+        1085625790948978688,  # Ask Pronouns
+        1085625784179363913,  # Any Pronouns
+    ]
 
 client = Bot(
         intents = intents,
@@ -42,15 +130,16 @@ client = Bot(
 async def on_ready():
     client.copyGuild  = client.get_guild(959551566388547676) # TransPlace   # testing server: 1034084825482661939
     client.pasteGuild = client.get_guild(981615050664075404) # TransPlace [Copy]
-    is_dev = 0
+    client.is_dev = 0
     if open('token.txt',"r").read().endswith("NEXPRir4\n"):
-        is_dev = 1
+        client.is_dev = 1
         client.copyGuild = client.get_guild(981615050664075404)  # TransPlace [Copy]
         client.pasteGuild = client.get_guild(1034084825482661939)  # Dev Copy Copy testing server
     if client.copyGuild is None or client.pasteGuild is None:
         print("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
         raise Exception("WARNINGGGG COULDN'T GET SERVER INFORMATION / ROLES ETC. STUFF THINGIES. SO CAN'T COMPARE SERVERS")
-    print(f"[#] Logged in as {client.user}, in version {version}" + " (Developer Mode)"*is_dev)#,color="green")
+
+    print(f"[#] Logged in as {client.user}, in version {version}" + " (Developer Mode)"*client.is_dev)#,color="green")
     # await client.logChannel.send(f":white_check_mark: **Started ChannelTracker** in version {version}")
 
 @client.event
@@ -704,19 +793,196 @@ async def check_link(itx: discord.Interaction, id: str):
                     f"`{id}` is linked to `{', '.join(results)}`" + other_result + "\nBe sure to check if its category is blacklisted too.",
             ephemeral=True)
 
+# async def on_voice_state_update(member_copy: discord.Member, _before: discord.VoiceState, _after: discord.VoiceState):
+@client.event
+async def on_member_join(member_copy: discord.Member):
+    if member_copy.guild.id != client.pasteGuild.id:
+        return
+    member_tp = client.copyGuild.get_member(member_copy.id)
+    automate_role_update = False
+    roles_to_add_buffer = []
+    if client.is_dev == 0:
+        entry_allowed_roles = client.tp_entry_allowed_roles
+        notable_roles = client.tp_notable_roles
+    else:
+        entry_allowed_roles = client.copy_entry_allowed_roles
+        notable_roles = client.copy_notable_roles
 
-# @client.event
-# async def on_guild_update(before, after):
-#     pass
-#
-# @client.event
-# async def on_guild_emojis_update(guild, before, after):
-#     pass
-#
-# @client.event
-# async def on_guild_stickers_update(guild, before, after):
-#     pass
+    if member_tp is not None: # if the user *is* in the main server
+        collection = TrackerDB["ids"]
+        search = collection.find({})
+        if search is None: # get all copied/logged roles and channels
+            return
+        for item in search:
+            for role_tp in member_tp.roles:
+                if item['id'] == role_tp.id:
+                    if role_tp.id in entry_allowed_roles:
+                        automate_role_update = True
+                    if role_tp.id in notable_roles + entry_allowed_roles:
+                        role_copy = member_copy.guild.get_role(item['matchingid'])
+                        roles_to_add_buffer.append(role_copy)
 
+    if len(roles_to_add_buffer) > 0:
+        await member_copy.add_roles(*roles_to_add_buffer)
+
+    welcome_channel = None
+    if client.is_dev == 0:
+        welcome_channel = client.get_channel(1046086440011964487)
+    elif client.is_dev == 1:
+        welcome_channel = client.get_channel(1085625766089326602)
+    if welcome_channel is None:
+        raise Exception("Couldn't find welcome channel!")
+
+    if automate_role_update is False:
+        await welcome_channel.send(f":x: **{member_copy.mention} might not be allowed to be here...** (still gave them their corresponding roles tho...)",
+                                   allowed_mentions=discord.AllowedMentions.none())
+    else:
+        await welcome_channel.send(f":white_check_mark: {member_copy.mention} is valid. Welcome!",
+                                   allowed_mentions=discord.AllowedMentions.none())
+
+@channeltracker.command(name="update_member_roles", description="Update a member's roles to match the main server")
+@app_commands.rename(member_copy="user")
+@app_commands.describe(member_copy="Whose roles do you want to update?")
+async def update_member(itx: discord.Interaction, member_copy: discord.Member = None):
+    if member_copy is None:
+        member_copy = itx.user
+    member_tp = client.copyGuild.get_member(member_copy.id)
+    roles_final = []
+    if client.is_dev == 0:
+        updatable_roles = client.tp_entry_allowed_roles + client.tp_notable_roles
+    else:
+        updatable_roles = client.copy_entry_allowed_roles + client.copy_notable_roles
+
+    ### Make a list of roles that the member *should* have
+    if member_tp is None:  # if the user *is* in the main server
+        await itx.response.send_message("Couldn't update your roles because you aren't in the main server! (?)", ephemeral=True)
+        return
+    collection = TrackerDB["ids"]
+    search = collection.find({})
+    if search is None:  # get all copied/logged roles and channels
+        return
+    for item in search:
+        for role_tp in member_tp.roles:
+            if item['id'] == role_tp.id:
+                if role_tp.id in updatable_roles:
+                    role_copy = member_copy.guild.get_role(item['matchingid'])
+                    roles_final.append(role_copy)
+
+    ### Makes a list of roles that the member doesn't have but *should* have
+    roles_to_add = []
+    for role in roles_final:
+        if role not in member_copy.roles and role.name != "@everyone":
+            roles_to_add.append(role)
+
+    ### Makes a list of roles that the member has but *shouldn't* have
+    roles_to_remove = []
+    for role in member_copy.roles:
+        if role not in roles_final and role.name != "@everyone":
+            roles_to_remove.append(role)
+
+    class Confirm(discord.ui.View):
+        class RemoveItem(discord.ui.Modal, title="What role do you not wanna update?"):
+            def __init__(self, target, role_updates, role_update_index, timeout=300):
+                super().__init__()
+                self.value = None
+                self.timeout = timeout
+                self.target = target
+                self.role_updates = role_updates
+                self.role_update_index = role_update_index
+                self.max_index = len(role_updates[role_update_index]) - 1
+                self.id = None
+                self.question_text = discord.ui.TextInput(label='Item index',
+                                                          placeholder=f"[A number from 0 to {self.max_index} ]",
+                                                          # style=discord.TextStyle.short,
+                                                          # required=True
+                                                          )
+                self.add_item(self.question_text)
+
+            @staticmethod
+            def gen_embed(target, add_roles, remove_roles, color = None, keep_description=True):
+                if color is None:
+                    color = [0.6666,0.4,1]
+                color = discord.Colour.from_hsv(h=color[0],s=color[1],v=color[2])
+                if keep_description:
+                    description = f"You're about to update {target.mention}'s roles. The bot plans to add/remove the following roles. " + \
+                                  f"Please check and make sure you want to make these updates (like removing Admin, or adding channel-blocking roles"
+                else:
+                    description = None
+                embed = discord.Embed(
+                    color=color,
+                    title="Update a member's role",
+                    description=description
+                )
+                add_roles    = [f"`{i}` | {add_roles[i].mention   }" for i in range(len(add_roles   ))]
+                remove_roles = [f"`{i}` | {remove_roles[i].mention}" for i in range(len(remove_roles))]
+                embed.add_field(name="Add:",    value='\n'.join(add_roles)    + "None!"*(len(add_roles)    < 1))
+                embed.add_field(name="Remove:", value='\n'.join(remove_roles) + "None!"*(len(remove_roles) < 1))
+                return embed
+
+            async def on_submit(self, itx: discord.Interaction):
+                self.value = 9  # failed; placeholder
+                try:
+                    self.id = int(self.question_text.value)
+                except ValueError:
+                    await itx.response.send_message(
+                        content=f"Couldn't send entry: '{self.question_text.value}' is not an integer. "
+                                "It has to be an index number from the `/channeltracker update_member_roles` command response.",
+                        ephemeral=True)
+                    return
+                if self.id < 0 or self.id > self.max_index:
+                    await itx.response.send_message(
+                        content=f"Couldn't send intry: '{self.id}' is not a possible index to remove from the changed roles. "
+                                "It has to be an index number from the `/channeltracker update_member_roles` command response.",
+                        ephemeral=True)
+                    return
+                del self.role_updates[self.role_update_index][self.id]
+                self.value = 1  # succeeded
+                await itx.response.edit_message(embed=self.gen_embed(self.target, self.role_updates[0], self.role_updates[1]))
+                self.stop()
+
+        def __init__(self, target, role_adds, role_removes, timeout=300):
+            super().__init__()
+            self.target = target
+            self.role_adds = role_adds
+            self.role_removes = role_removes
+            self.timeout = timeout
+
+        @discord.ui.button(label="Don't add: roleID", style=discord.ButtonStyle.blurple)
+        async def unadd(self, itx: discord.Interaction, _button: discord.ui.Button):
+            if len(self.role_adds) < 1:
+                await itx.response.send_message("You can't un-add a role for this user, because it already wasn't going to...", ephemeral=True)
+                return
+            send_one = Confirm.RemoveItem(self.target, [self.role_adds, self.role_removes], 0)
+            await itx.response.send_modal(send_one)
+            await send_one.wait()
+            self.role_adds = send_one.role_updates[0]
+
+        @discord.ui.button(label="Don't remove: roleID", style=discord.ButtonStyle.blurple)
+        async def unremove(self, itx: discord.Interaction, _button: discord.ui.Button):
+            if len(self.role_removes) < 1:
+                await itx.response.send_message("You can't un-remove a role for this user, because it already wasn't going to...", ephemeral=True)
+                return
+            send_one = Confirm.RemoveItem(self.target, [self.role_adds, self.role_removes], 1)
+            await itx.response.send_modal(send_one)
+            await send_one.wait()
+            self.role_removes = send_one.role_updates[1]
+
+        @discord.ui.button(label="Confirm", style=discord.ButtonStyle.red)
+        async def confirm(self, itx: discord.Interaction, _button: discord.ui.Button):
+            if len(self.role_adds) > 0:
+                await self.target.add_roles(*self.role_adds, reason="Update member to match TP (kinda)")
+            if len(self.role_removes) > 0:
+                await self.target.remove_roles(*self.role_removes, reason="Update member to match TP (kinda)")
+
+            embed = Confirm.RemoveItem.gen_embed(self.target, self.role_adds, self.role_removes, color=[0.3333,0.4,1], keep_description=False)
+
+            await itx.response.edit_message(view=None, embed=embed)
+            self.stop()
+
+    view = Confirm(member_copy, roles_to_add, roles_to_remove)
+    await itx.response.send_message(embed=Confirm.RemoveItem.gen_embed(member_copy, roles_to_add, roles_to_remove),
+                                    view=view,
+                                    ephemeral=True)
 
 try:
     client.run(open('token.txt',"r").read())
